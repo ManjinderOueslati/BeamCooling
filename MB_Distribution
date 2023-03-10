@@ -1,0 +1,144 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import maxwell
+# Energy MB Distribution Code that cuts energy tail via recursion
+
+''' 
+Question 1: I cut the distribution tail off, but the mean probability is not the same as the mean of Energy. 
+The mean of energy is where the maximum probability occurs which does not change with the cut...
+
+Question 2: Tail distribution is lost is it significant? Lower % energy cuts yield more of tail
+'''
+
+# Set the parameters of the Maxwell Boltzmann distribution - ASSUME M ~ Kb^-1 hence v = sqrt(T)
+kb = 1                              # Boltzmann Constant
+T0 = 10                             # Temperature in Kelvin
+Emax = 5*kb*T0
+E0 = np.linspace(0, Emax, 1000)  # Energy range in joules
+
+# Calculate probability density function using Maxwell-Boltzmann statistics:
+# f(x) = (x^2/a^3)*sqrt(2/pi)*exp((-x^2)/2a^2) for x >= 0 is maxwell.pdf(x, location = 0.0, scale = a)
+def pdf_eqn(x,a, N): # Energy, Temp, Normalization Factor
+    pdf = N * 2 * np.sqrt(x / np.pi) * ((1 / (kb * a)) ** (3 / 2)) * np.exp(-x / (kb * a))
+    return pdf
+
+pdf_0 = pdf_eqn(E0, T0, 1.0) # Initialize
+#pdf_0 /= np.linalg.norm(pdf_0) # Normalize if not already
+#-----------------------------------------------------------------------------------------------------------------------
+# Max Probability: Eavg = (1/2)*k*T
+p0_max = np.argmax(pdf_0)
+E0_mean = E0[p0_max]
+#print('Energy of Max Probability', format(E0_mean, '0.3g'), 'J')
+cutoff = Emax
+#-----------------------------------------------------------------------------------------------------------------------
+# Apply Energy Cut off 10% of the tail
+# Function that uses previous energy at max prob to calculate new T and create new thermalized maxwell distribution
+intr = 0 # Number of iterations
+def successive_cut(x, p_x, T, P): # Energy, pdf, Temperature, Probability to cut
+    global intr, cutoff
+    while (T >= 0.1):
+        print('Cutoff Energy = ', format(cutoff, '0.3g'))
+        # Finds the (100-P)th percentile of the P(E) and sets all values of the PDF below the cutoff to zero
+
+        # Cut Tail Energy
+        #pdf_cut = p_x[x <= cutoff]
+        #E_cut = x[x <= cutoff]
+        pdf_cut = np.where(x > cutoff, 0, p_x)
+
+        p_new_max = np.argmax(pdf_cut)
+        #E_new_max = E_cut[p_new_max]
+        x_new_max = x[p_new_max]
+        print('New Energy of Max Probability', format(x_new_max, '0.3g'), 'J')
+        T_new = 2*x_new_max
+        print('New Temperature of System in Kelvin:', format(T_new, '0.3g'), 'K')
+
+        # Area under curve approximated by trapezoidal rule
+        area_tr = 100*(np.trapz(pdf_cut) / np.trapz(p_x))
+        print('Fraction of Distribution Remaining Trapezoidal Approx: ', format(area_tr, '0.7g'))
+
+        # Re-thermalized MB Distribution should give new T from Eavg because same energy limitation theoretically - To rectify graphical energy loss and renormalization
+        x_new = np.linspace(0, cutoff, 1000)
+        pdf_new = pdf_eqn(x, T_new, 1.0)
+        #pdf_new /= np.linalg.norm(pdf_new)
+        cutoff = np.percentile(x, 100-P) # 10% of tail
+        intr += 1
+        if (intr == 10): return x, p_x
+
+        return successive_cut(x_new, pdf_new, T_new, P)
+    else:
+        return x, p_x
+
+E1, pdf_1 = successive_cut(E0, pdf_0, T0, 10)
+print('Number of iterations from 10K - 1K:', format(intr-1), '\n')
+
+# Plot the normalized probability density function
+plt.plot(E0, pdf_0, label = 'Orginial MB')
+plt.plot(E1, pdf_1, label = 'MB Cut index of {:.1f}'.format(intr))
+plt.axvline(E0_mean, color='g', linestyle='--', label='$E_{0}$ of Max Prob of MB')
+#plt.axvline(c1, color='r', linestyle='--', label='$E_{0}$ Cutoff')
+
+# Turn on Log-Log Scale
+#plt.xscale('log')
+#plt.yscale('log')
+
+plt.xlabel('Energy (J) ')
+plt.ylabel('Probability Density')
+plt.title('Maxwell-Boltzmann Distribution T = 10K - 0.01K')
+plt.legend()
+plt.show()
+#-----------------------------------------------------------------------------------------------------------------------
+# Task 1: Do singular cut where I analyze various percentages from .01 - 50 and graph them. See change in mean energy and loss of particles. Cut fraction is proportional to energy mean. (2D plot)
+E_arr = np.zeros((2, 10)) # 2x8 array
+F_arr = np.zeros((2, 10)) # 2x8 array
+
+def different_cuts(x, p_x, P):  # Energy, pdf, Percentage to cut
+    global cutoff
+    for i in range(len(F_arr[0])):
+        # First iteration just sets the cutoff
+        print('Cutoff Energy = ', format(cutoff, '0.3g'))
+        pdf_cut = np.where(x > cutoff, 0, p_x)
+
+        p_new_max = np.argmax(pdf_cut)
+        x_new_max = x[p_new_max]
+        print('New Energy of Max Probability', format(x_new_max, '0.3g'), 'J')
+
+        E_arr[0, i] = P
+        E_arr[1, i] = x_new_max
+
+        # Area under curve approximated by trapezoidal rule
+        area_tr = 100 * (np.trapz(pdf_cut) / np.trapz(p_x))
+        print('Fraction of Distribution Remaining Trapezoidal Approx: ', format(area_tr, '0.7g'))
+        F_arr[0, i] = P
+        F_arr[1, i] = area_tr
+
+        cutoff = np.percentile(x, P)
+        P /= 2 # Halving the cutoff range
+    return E_arr, F_arr
+# Run Code with initial Cut at 50%
+E_arr, F_arr = different_cuts(E0, pdf_0, 50)
+#-----------------------------------------------------------------------------------------------------------------------
+# Plotting
+plt.suptitle('MB Distribution P = 0.01 - 50% Cut')
+plt.subplot(1,3,1)
+plt.plot(E_arr[1], F_arr[1], label='Fraction v. Energy')
+plt.xlabel('Energy Mean (J)')
+plt.ylabel('Fraction of Particles Remaining')
+#plt.xscale('log')
+#plt.yscale('log')
+
+plt.subplot(1,3,2)
+plt.plot(E_arr[0], E_arr[1], label='Energy Mean v. Percentage')
+plt.xlabel('Percentage')
+plt.ylabel('Mean Energy')
+#plt.xscale('log')
+#plt.yscale('log')
+
+plt.subplot(1,3,3)
+plt.plot(F_arr[0], F_arr[1], label='Fraction v. Percentage')
+plt.xlabel('Percentage')
+plt.ylabel('Fraction of Particles')
+#plt.xscale('log')
+#plt.yscale('log')
+
+plt.show()
+#-----------------------------------------------------------------------------------------------------------------------
