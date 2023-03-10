@@ -2,14 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import maxwell
 # Energy MB Distribution Code that cuts energy tail via recursion
-
-''' 
-Question 1: I cut the distribution tail off, but the mean probability is not the same as the mean of Energy. 
-The mean of energy is where the maximum probability occurs which does not change with the cut...
-
-Question 2: Tail distribution is lost is it significant? Lower % energy cuts yield more of tail
-'''
-
 # Set the parameters of the Maxwell Boltzmann distribution - ASSUME M ~ Kb^-1 hence v = sqrt(T)
 kb = 1                              # Boltzmann Constant
 T0 = 10                             # Temperature in Kelvin
